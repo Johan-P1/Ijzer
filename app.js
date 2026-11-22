@@ -1,5 +1,5 @@
 // App-shell: rendering, navigatie, events en timers.
-import { state, save, requestPersistence } from './store.js';
+import { state, save, requestPersistence, loadError } from './store.js';
 import { ui, setRenderer, actions, registerActions, go, openSheet, closeSheet } from './core.js';
 import { resetCharts, mountCharts, hideTip } from './charts.js';
 import { esc, icon, fmtClock } from './util.js';
@@ -9,11 +9,25 @@ import * as progress from './progress.js';
 import * as history from './history.js';
 import * as program from './program.js';
 import * as settings from './settings.js';
+import * as cv from './cviews.js';
+import * as onboard from './onboard.js';
+import { mountAnims } from './anim.js';
 
-window.IJZER_VERSION = '1.0.0';
+window.IJZER_VERSION = '1.1.0';
 
 const VIEWS = { home: home.view, train: train.view, progress: progress.view, history: history.view, program: program.view, settings: settings.view };
-const SHEETS = { ...home.sheets, ...train.sheets, ...history.sheets, ...program.sheets, ...settings.sheets };
+// Circuitmodus gebruikt eigen schermen voor home, train, voortgang en schema.
+const CVIEWS = { home: cv.homeView, train: cv.trainView, progress: cv.progressView, program: cv.programView };
+const SHEETS = { ...home.sheets, ...train.sheets, ...history.sheets, ...program.sheets, ...settings.sheets, ...cv.sheets };
+
+const needsOnboarding = () => !state.seenWelcome && state.workouts.length === 0;
+function viewFor(tab) {
+  if (needsOnboarding()) return onboard.view;
+  if (state.settings.mode === 'circuit' && CVIEWS[tab]) return CVIEWS[tab];
+  return VIEWS[tab] || VIEWS.home;
+}
+// Tijdens het welkomstscherm en de circuit-timer geen tabbalk.
+const fullscreen = () => needsOnboarding() || (ui.tab === 'train' && state.active?.style === 'circuit');
 const TABS = [
   ['home', 'Home', 'home'],
   ['progress', 'Voortgang', 'trend'],
@@ -59,8 +73,14 @@ function render() {
   hideTip();
   resetCharts();
   $view.dataset.tab = ui.tab;
-  $view.innerHTML = (VIEWS[ui.tab] || VIEWS.home)();
-  $tabs.innerHTML = tabbar();
+  const warn = loadError()
+    ? `<section class="card banner warn"><div class="banner-ic">${icon('info')}</div><div class="grow"><div class="row-t">Je gegevens konden niet worden geladen</div><div class="row-s">Ze zijn veilig bewaard en worden niet overschreven. Wat je nu invult wordt niet opgeslagen. Zoek naar een update of zet een back-up terug via Instellingen.</div></div></section>`
+    : '';
+  $view.innerHTML = warn + viewFor(ui.tab)();
+  const full = fullscreen();
+  document.body.classList.toggle('full', full);
+  $tabs.hidden = full;
+  $tabs.innerHTML = full ? '' : tabbar();
   const body = $sheet.querySelector('.sheet-body');
   const keep = body && ui.sheet && ui.sheet._k === lastSheetKey ? body.scrollTop : 0;
   if (!ui.sheet) lastSheetKey = null;
@@ -69,6 +89,7 @@ function render() {
   if (nb && keep) nb.scrollTop = keep;
   document.documentElement.classList.toggle('locked', !!ui.sheet);
   mountCharts(document);
+  mountAnims(document);
   tick();
 }
 setRenderer(render);
@@ -140,7 +161,6 @@ document.addEventListener('visibilitychange', () => {
 // ---------- start ----------
 if (state.active) ui.tab = 'train';
 render();
-if (!state.seenWelcome) openSheet('welcome');
 save();
 requestPersistence();
 

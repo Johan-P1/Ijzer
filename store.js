@@ -19,8 +19,12 @@ export function defaultState() {
   return {
     version: VERSION,
     createdAt: Date.now(),
-    profile: { name: '', age: 39 },
-    settings: { goal: 'hypertrophy', goalSince: todayISO(), trainingDays: [0, 2, 4] },
+    profile: { name: '', age: 39, targetWeight: null },
+    // mode: 'strength' (sets × reps) of 'circuit' (op tijd). Knieën/springen/zwangerschap/ervaring sturen het circuitschema.
+    settings: {
+      mode: 'strength', goal: 'hypertrophy', goalSince: todayISO(), trainingDays: [0, 2, 4],
+      knees: 'ok', jumping: false, postpartum: false, experience: 1, sound: true,
+    },
     equipment,
     program: generateProgram({ goal: 'hypertrophy', split: 'ppl' }, equipment),
     workouts: [],
@@ -47,20 +51,35 @@ function migrate(s) {
   return out;
 }
 
+// Kan de opgeslagen data niet worden gelezen (bijv. een fout na een update), dan bewaren we
+// een kopie en schrijven we NIETS over de bestaande data heen.
+let loadFailed = false;
+export const loadError = () => loadFailed;
+
 export let state = load();
 
 function load() {
+  let raw = null;
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return migrate(JSON.parse(raw));
-  } catch (e) {
-    console.warn('Kon data niet laden', e);
+    raw = localStorage.getItem(KEY);
+  } catch {}
+  if (raw) {
+    try {
+      return migrate(JSON.parse(raw));
+    } catch (e) {
+      console.error('Kon data niet laden', e);
+      loadFailed = true;
+      try {
+        localStorage.setItem(`${KEY}:herstel-${Date.now()}`, raw);
+      } catch {}
+    }
   }
   return defaultState();
 }
 
 let saveError = null;
 export function save() {
+  if (loadFailed) return false;
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
     saveError = null;
@@ -73,12 +92,14 @@ export function save() {
 
 export function replaceState(next) {
   state = migrate(next);
+  loadFailed = false;
   save();
 }
 
+// Alles wissen: daarna start het welkomstscherm opnieuw.
 export function resetState() {
   state = defaultState();
-  state.seenWelcome = true;
+  loadFailed = false;
   save();
 }
 

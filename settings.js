@@ -1,8 +1,10 @@
 // Instellingen: profiel, doel, weekplanning, apparatuur en gegevens.
 import { state, save, replaceState, resetState, validateBackup } from './store.js';
-import { ui, go, openSheet, closeSheet, registerActions, rerender, toast, btn, stepper, confirmSheet, actions } from './core.js';
+import { ui, go, openSheet, closeSheet, registerActions, rerender, toast, btn, stepper, seg, confirmSheet, actions } from './core.js';
 import { GOALS, GOAL_ORDER } from './data.js';
-import { applyGoal, barStep, barMax, platesTotal } from './engine.js';
+import { KNEE_LABEL, EXPERIENCE, CIRCUIT_GOALS } from './cdata.js';
+import { applyGoal, barStep, barMax, platesTotal, generateProgram } from './engine.js';
+import { generateCircuitProgram, refreshCircuitProgram } from './circuit.js';
 import { esc, icon, fmtKg, parseNum, DAY_SHORT, fmtDate, toISO, todayISO } from './util.js';
 
 const PLATE_SIZES = ['25', '20', '15', '10', '5', '2.5', '1.25'];
@@ -10,6 +12,7 @@ const PLATE_SIZES = ['25', '20', '15', '10', '5', '2.5', '1.25'];
 export function view() {
   const s = state.settings;
   const eq = state.equipment;
+  const circuit = s.mode === 'circuit';
   return `
     <header class="topbar"><button class="btn sm ghost back" data-act="go" data-tab="home">${icon('left')}<span>Home</span></button></header>
     <h1 class="title">Instellingen</h1>
@@ -17,13 +20,30 @@ export function view() {
     <div class="sub-h">Profiel</div>
     <section class="card">
       <label class="field"><span>Naam (optioneel)</span><input class="input" value="${esc(state.profile.name)}" data-input="pf-name" placeholder="Je voornaam" autocomplete="given-name"></label>
-      <label class="field nomb"><span>Leeftijd</span><input class="input" inputmode="numeric" value="${esc(state.profile.age ?? '')}" data-change="pf-age"></label>
+      <div class="grid2">
+        <label class="field nomb"><span>Leeftijd</span><input class="input" inputmode="numeric" value="${esc(state.profile.age ?? '')}" data-change="pf-age"></label>
+        <label class="field nomb"><span>Streefgewicht (kg)</span><input class="input" inputmode="decimal" value="${state.profile.targetWeight ? fmtKg(state.profile.targetWeight) : ''}" placeholder="–" data-change="pf-target"></label>
+      </div>
+    </section>
+
+    <div class="sub-h">Training</div>
+    <section class="card">
+      <div class="field"><span>Trainingsvorm</span>${seg([['strength', 'Kracht (sets × reps)'], ['circuit', 'Circuit (op tijd)']], s.mode || 'strength', 'mode-pick')}</div>
+      ${circuit ? `
+        <div class="field"><span>Knieën</span>${seg(Object.entries(KNEE_LABEL), s.knees || 'ok', 'c-set', { k: 'knees' })}</div>
+        <div class="field"><span>Ervaring</span>${seg(EXPERIENCE.map((l, i) => [i, l]), s.experience ?? 1, 'c-set', { k: 'experience' })}</div>
+        <button class="toggle-row" data-act="c-flag" data-k="jumping"><span>Springen toegestaan</span><span class="switch${s.jumping ? ' on' : ''}"><i></i></span></button>
+        <button class="toggle-row" data-act="c-flag" data-k="postpartum"><span>Herstellend van zwangerschap</span><span class="switch${s.postpartum ? ' on' : ''}"><i></i></span></button>
+        <button class="toggle-row" data-act="c-flag" data-k="sound"><span>Piepjes tijdens de training</span><span class="switch${s.sound !== false ? ' on' : ''}"><i></i></span></button>
+        <p class="foot">Wijzig je knieën of springen, dan past IJzer je schema direct aan.</p>` : ''}
     </section>
 
     <div class="sub-h">Doel</div>
     <section class="card">
-      <div class="options">${GOAL_ORDER.map((k) => `<button class="option${s.goal === k ? ' on' : ''}" data-act="goal-pick" data-v="${k}">
-        <span class="opt-t">${esc(GOALS[k].label)}</span><span class="opt-s">${esc(GOALS[k].desc)}</span></button>`).join('')}</div>
+      <div class="options">${(circuit ? Object.keys(CIRCUIT_GOALS) : GOAL_ORDER).map((k) => {
+        const g = circuit ? CIRCUIT_GOALS[k] : GOALS[k];
+        return `<button class="option${s.goal === k ? ' on' : ''}" data-act="goal-pick" data-v="${k}"><span class="opt-t">${esc(g.label)}</span><span class="opt-s">${esc(g.desc)}</span></button>`;
+      }).join('')}</div>
     </section>
 
     <div class="sub-h">Weekplanning</div>
@@ -126,9 +146,65 @@ registerActions({
     state.profile.age = n ? Math.round(n) : null;
     save();
   },
+  'pf-target'(_, el) {
+    const n = parseNum(el.value);
+    state.profile.targetWeight = n && n > 30 && n < 250 ? n : null;
+    save();
+    rerender();
+  },
   'goal-pick'({ v }) {
     if (v === state.settings.goal) return;
+    if (state.settings.mode === 'circuit') {
+      // in circuitmodus bepaalt het doel alleen het advies voor je gewichtsverloop
+      state.settings.goal = v;
+      state.settings.goalSince = todayISO();
+      save();
+      rerender();
+      return toast('Doel aangepast');
+    }
     openSheet('goal-change', { goal: v });
+  },
+  'mode-pick'({ v }) {
+    const s = state.settings;
+    if ((s.mode || 'strength') === v) return;
+    if (state.active) return toast('Rond eerst je lopende training af');
+    confirmSheet({
+      title: v === 'circuit' ? 'Overstappen op circuit?' : 'Overstappen op kracht?',
+      text: 'Je krijgt een nieuw schema dat bij deze trainingsvorm past. Je historie blijft bewaard.',
+      ok: 'Overstappen',
+      onOk: () => {
+        s.mode = v;
+        if (v === 'circuit') {
+          if (!['cut', 'health'].includes(s.goal)) s.goal = 'cut';
+          state.program = generateCircuitProgram(state, 0);
+        } else {
+          if (!GOALS[s.goal]) s.goal = 'hypertrophy';
+          state.program = generateProgram({ goal: s.goal, split: 'ppl' }, state.equipment);
+        }
+        s.goalSince = todayISO();
+        save();
+        rerender();
+        toast('Nieuw schema staat klaar');
+      },
+    });
+  },
+  'c-set'({ k, v }) {
+    const s = state.settings;
+    s[k] = k === 'experience' ? Number(v) : v;
+    if (k === 'knees' && !state.active) refreshCircuitProgram(state);
+    save();
+    rerender();
+    if (k === 'knees') toast('Schema aangepast aan je knieën');
+  },
+  'c-flag'({ k }) {
+    const s = state.settings;
+    s[k] = k === 'sound' ? s.sound === false : !s[k];
+    if (k === 'jumping' && !state.active) {
+      refreshCircuitProgram(state);
+      toast(s.jumping ? 'Sprongvarianten toegevoegd' : 'Sprongvarianten eruit gehaald');
+    }
+    save();
+    rerender();
   },
   'goal-apply'({ mode }) {
     const goal = ui.sheet.goal;

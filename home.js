@@ -40,7 +40,7 @@ export function view() {
 
 const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
-function installBanner() {
+export function installBanner() {
   if (isStandalone() || state.hideInstall) return '';
   return `<section class="card banner">
     <div class="banner-ic">${icon('download')}</div>
@@ -50,7 +50,7 @@ function installBanner() {
   </section>`;
 }
 
-function backupBanner() {
+export function backupBanner() {
   if (state.workouts.length < 5) return '';
   const age = state.lastBackup ? (Date.now() - state.lastBackup) / 86400000 : Infinity;
   if (age < 30) return '';
@@ -93,7 +93,7 @@ function heroCard() {
   </section>`;
 }
 
-function weekCard() {
+export function weekCard() {
   const days = weekDots(state);
   const { start, end } = thisWeek();
   const n = workoutsBetween(state, start, end).length;
@@ -185,7 +185,7 @@ function muscleCard() {
   </section>`;
 }
 
-function consistencyCard() {
+export function consistencyCard() {
   const cal = calendar(state, 16);
   const t = Object.values(cal.map).reduce((s, m) => s + m.train, 0);
   // gemiddelde over de weken sinds je eerste training (max 16)
@@ -205,7 +205,7 @@ const BW_MSG = {
   health: { ok: 'Stabiel gewicht.', low: 'Je valt wat af.', high: 'Je komt wat aan.' },
 };
 
-function bodyweightCard() {
+export function bodyweightCard() {
   const s = bodyweightStats(state);
   const goalKey = state.settings.goal;
   const from = addDaysISO(todayISO(), -120);
@@ -221,9 +221,28 @@ function bodyweightCard() {
       <span class="fig-v">${s ? fmt1(s.latest.kg) : '–'}<small> kg</small></span>
       ${s ? `<span class="fig-d muted">${esc(relDay(s.latest.date))}</span>` : ''}
     </div>
+    ${targetBar(s)}
     ${pts.length >= 2 ? lineChart(pts, { w: chartWidth(), h: 140, name: 'Lichaamsgewicht' }) : ''}
     ${status}
   </section>`;
+}
+
+// Voortgang van startgewicht naar streefgewicht.
+function targetBar(s) {
+  const target = state.profile.targetWeight;
+  if (!s || !target) return '';
+  const start = s.series[0].y;
+  const now = s.latest.kg;
+  const total = start - target;
+  if (Math.abs(total) < 0.1) return '';
+  const done = start - now;
+  const pct = Math.max(0, Math.min(1, done / total));
+  const left = now - target;
+  const reached = total > 0 ? now <= target : now >= target;
+  return `<div class="target">
+    <div class="target-bar"><span style="width:${(pct * 100).toFixed(1)}%"></span></div>
+    <div class="target-l"><span>${fmt1(start)} kg</span><b>${reached ? 'Doel bereikt!' : `${signed(-done, fmt1)} kg · nog ${fmt1(Math.abs(left))} kg`}</b><span>${fmt1(target)} kg</span></div>
+  </div>`;
 }
 
 function prCard() {

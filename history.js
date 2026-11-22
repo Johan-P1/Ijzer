@@ -2,6 +2,7 @@
 import { state } from './store.js';
 import { ui, go, openSheet, registerActions, toast, btn } from './core.js';
 import { EX } from './data.js';
+import { CX, FEELING } from './cdata.js';
 import { workoutSummary, computePRs } from './engine.js';
 import { esc, icon, fmtKg, fmtDate, fmtDateLong, fmtCompact, fmtMinutes, parseDate, MONTH_LONG } from './util.js';
 
@@ -32,6 +33,17 @@ export function view() {
 
 function workoutRow(w, prs) {
   const sm = workoutSummary(state, w);
+  if (w.style === 'circuit') {
+    const c = w.circuit || {};
+    return `<button class="row row-btn" data-act="open-workout" data-id="${w.id}">
+      <span class="row-ic train">${icon('bolt')}</span>
+      <div class="grow">
+        <div class="row-t">${esc(w.dayName)}</div>
+        <div class="row-s">${esc(fmtDate(w.date))} · ${sm.minutes ? fmtMinutes(sm.minutes) : '–'} · ${c.roundsDone ?? 0}/${c.roundsPlanned ?? 0} rondes${c.rpe ? ' · ' + esc(FEELING[c.rpe - 1]) : ''}</div>
+      </div>
+      ${icon('right', 'chev')}
+    </button>`;
+  }
   return `<button class="row row-btn" data-act="open-workout" data-id="${w.id}">
     <span class="row-ic train">${icon('dumbbell')}</span>
     <div class="grow">
@@ -43,11 +55,40 @@ function workoutRow(w, prs) {
   </button>`;
 }
 
+const FB = { light: 'te licht', ok: 'goed', heavy: 'te zwaar' };
+
+function circuitDetail(w, sm) {
+  const c = w.circuit || {};
+  const ids = c.list || Object.keys(c.weights || {});
+  return {
+    title: w.dayName,
+    body: `
+      <p class="muted small">${esc(fmtDateLong(w.date))} · fase ${c.phase ?? '–'} · ${c.work ?? '–'}/${c.rest ?? '–'} sec</p>
+      <div class="stats3">
+        <div><span class="tile-v">${sm.minutes ? fmtMinutes(sm.minutes) : '–'}</span><span class="tile-l">Duur</span></div>
+        <div><span class="tile-v">${c.roundsDone ?? 0}/${c.roundsPlanned ?? 0}</span><span class="tile-l">Rondes</span></div>
+        <div><span class="tile-v">${c.finisher?.type === 'amrap' ? c.finisher.score : c.rpe ? esc(FEELING[c.rpe - 1]) : '–'}</span><span class="tile-l">${c.finisher?.type === 'amrap' ? 'Finisher-rondes' : 'Gevoel'}</span></div>
+      </div>
+      ${ids.map((id) => {
+        const ex = CX[id];
+        if (!ex) return '';
+        const kg = c.weights?.[id];
+        const load = ex.load === 'bw' ? 'lichaamsgewicht' : kg != null ? (ex.load === 'db2' ? `2 × ${fmtKg(kg)} kg` : `${fmtKg(kg)} kg`) : '';
+        return `<div class="detail-ex"><div class="row-t">${esc(ex.name)}</div><div class="row-s">${esc(load)}${c.feedback?.[id] ? ' · ' + FB[c.feedback[id]] : ''}</div></div>`;
+      }).join('')}
+      ${c.rpe && c.finisher?.type === 'amrap' ? `<p class="small">Gevoel: <b>${esc(FEELING[c.rpe - 1])}</b></p>` : ''}
+      ${w.notes ? `<div class="sub-h">Notities</div><p class="notes">${esc(w.notes)}</p>` : ''}
+    `,
+    foot: btn('Verwijderen', 'delete-workout', { cls: 'ghost danger block', data: { id: w.id } }),
+  };
+}
+
 export const sheets = {
   'workout-detail'(sh) {
     const w = state.workouts.find((x) => x.id === sh.id);
     if (!w) return { title: 'Training', body: '<p class="empty">Niet gevonden.</p>' };
     const sm = workoutSummary(state, w);
+    if (w.style === 'circuit') return circuitDetail(w, sm);
     const prIds = new Set(computePRs(state).events.filter((e) => e.workoutId === w.id).map((p) => p.exId));
     return {
       title: w.dayName,

@@ -4,6 +4,17 @@ Een web-app (PWA) die je via Safari op je iPhone installeert. Hij werkt offline 
 
 ## Wat zit erin
 
+IJzer heeft twee trainingsvormen. Bij de eerste start kies je er een via een kort welkomstscherm.
+
+- **Circuit (op tijd):**
+  - begeleide warming-up, een circuit van 5 oefeningen, een finisher (tabata of AMRAP) en een cooling-down
+  - een aftelklok met piepjes, en het scherm blijft aan
+  - per oefening een bewegend figuurtje, aandachtspunten, een kniestip en een link naar YouTube-video's
+  - 3 fases van 4 weken
+  - gewichten die zich aanpassen aan "te licht / goed / te zwaar"
+  - houdt rekening met gevoelige knieën, springen en herstel na een zwangerschap
+- **Kracht (sets × reps):** alles hieronder.
+
 - **Dashboard:** volgende training, weekoverzicht, volume, weekreeks, records, krachtprogressie (geschat 1RM), sets per spiergroep tegen het advies voor je doel, een consistentiekalender en de trend van je lichaamsgewicht.
 - **Training loggen:** sets × reps × gewicht, met slimme suggesties via dubbele progressie. Verder een schijvencalculator per kant, opwarmsets, een trainings- en rusttimer, en een melding bij nieuwe records.
 - **Schema-generator:** kies je doel (spiermassa, kracht, vetverlies, fit) en een indeling (Benen/Duwen/Trekken, Full body, Upper/Lower). De oefeningen worden afgestemd op je apparatuur en het deload-ritme gaat automatisch.
