@@ -1,6 +1,6 @@
 // App-shell: rendering, navigatie, events en timers.
 import { state, save, requestPersistence, loadError } from './store.js';
-import { ui, setRenderer, actions, registerActions, go, openSheet, closeSheet } from './core.js';
+import { ui, setRenderer, actions, registerActions, go, openSheet, closeSheet, toast } from './core.js';
 import { resetCharts, mountCharts, hideTip } from './charts.js';
 import { esc, icon, fmtClock } from './util.js';
 import * as home from './home.js';
@@ -13,7 +13,7 @@ import * as cv from './cviews.js';
 import * as onboard from './onboard.js';
 import { mountAnims } from './anim.js';
 
-window.IJZER_VERSION = '1.1.0';
+window.IJZER_VERSION = '1.1.1';
 
 const VIEWS = { home: home.view, train: train.view, progress: progress.view, history: history.view, program: program.view, settings: settings.view };
 // Circuitmodus gebruikt eigen schermen voor home, train, voortgang en schema.
@@ -166,5 +166,14 @@ requestPersistence();
 
 // Alleen online (https) offline-cache aanzetten; lokaal testen blijft zo altijd vers.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  // Nieuwe versie binnen? Dan direct herladen, behalve tijdens een training (dan bij de volgende keer openen).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    if (state.active) return toast('Update klaar: wordt geladen na je training');
+    reloading = true;
+    location.reload();
+  });
   navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW-registratie mislukt', e));
 }

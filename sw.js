@@ -1,5 +1,5 @@
 // Service worker: bewaart de app offline. Verhoog VERSION bij elke update.
-const VERSION = 'ijzer-v1.1.0';
+const VERSION = 'ijzer-v1.1.1';
 const FILES = [
   './',
   './index.html',
@@ -31,7 +31,12 @@ const FILES = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' = altijd vers van de server, niet uit de browsercache (GitHub Pages cachet 10 min)
+  e.waitUntil(
+    caches.open(VERSION)
+      .then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
