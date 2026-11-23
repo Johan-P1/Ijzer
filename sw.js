@@ -1,5 +1,5 @@
 // Service worker: bewaart de app offline. Verhoog VERSION bij elke update.
-const VERSION = 'ijzer-v1.2.0';
+const VERSION = 'ijzer-v1.3.0';
 const FILES = [
   './',
   './index.html',

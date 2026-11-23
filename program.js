@@ -6,7 +6,7 @@ import { generateProgram, cycleInfo, estMinutes, plannedMuscleSets, barStep, sch
 import { hbarChart, chartWidth } from './charts.js';
 import { programReview, applyChanges } from './review.js';
 import { setProgramPick } from './train.js';
-import { esc, icon, fmtKg, fmt0, todayISO, addDaysISO } from './util.js';
+import { esc, icon, fmtKg, fmt0, todayISO, addDaysISO, dayStyle } from './util.js';
 
 const REVIEW_TITLE = { ok: 'Alles op koers', tweak: 'Kleine aanpassing aanbevolen', change: 'Tijd voor een nieuw trainingsblok' };
 
@@ -87,8 +87,8 @@ export function view() {
 }
 
 function dayCard(d) {
-  return `<section class="card list-card">
-    <div class="card-h pad"><h3>${esc(d.name)}</h3><span class="muted small">~${estMinutes(d)} min</span></div>
+  return `<section class="card list-card" style="${dayStyle(d.id)}">
+    <div class="card-h pad"><h3><span class="day-dot"></span>${esc(d.name)}</h3><span class="muted small">~${estMinutes(d)} min</span></div>
     ${d.items
       .map((it, idx) => {
         const ex = EX[it.exId];

@@ -11,7 +11,7 @@ import { animSVG } from './anim.js';
 import { installBanner, backupBanner, weekCard, consistencyCard, bodyweightCard } from './home.js';
 import { weekStreak, bodyweightStats, thisWeek, workoutsBetween } from './stats.js';
 import { columnChart, lineChart, chartWidth } from './charts.js';
-import { esc, icon, fmt0, fmt1, fmtKg, fmtMinutes, fmtClock, fmtDay, fmtDateLong, todayISO, addDaysISO, signed, isoWeekNumber, parseDate, toISO, addDays, startOfWeek } from './util.js';
+import { esc, icon, fmt0, fmt1, fmtKg, fmtMinutes, fmtClock, fmtDay, fmtDateLong, todayISO, addDaysISO, signed, isoWeekNumber, parseDate, toISO, addDays, startOfWeek, dayStyle } from './util.js';
 
 const info = (id) => CX[id] || WX[id] || { name: id, cues: [] };
 const exName = (id) => info(id).name;
@@ -37,7 +37,8 @@ export function homeView() {
       <span class="eyebrow">${esc(fmtDateLong(todayISO()))}</span>
       <button class="icon-btn" data-act="go" data-tab="settings" aria-label="Instellingen">${icon('sliders')}</button>
     </header>
-    <h1 class="title">${greet()}${name ? ', ' + esc(name) : ''}</h1>
+    <h1 class="title greet">${greet()}${name ? ', ' + esc(name) : ''}&nbsp;<span class="wave" aria-hidden="true">👋</span></h1>
+    <p class="greet-sub">${state.active ? 'Je training loopt nog. Even afmaken?' : 'Klaar om lekker te bewegen?'}</p>
     ${installBanner()}
     ${backupBanner()}
     ${heroCard()}
@@ -53,18 +54,24 @@ function heroCard() {
   const a = state.active;
   if (a?.style === 'circuit') {
     const done = Math.round((a.i / (a.steps.length - 1)) * 100);
-    return `<section class="card hero">
+    return `<section class="card hero" style="${dayStyle(a.dayId)}">
       <div class="hero-top"><span class="pill live"><i></i>Bezig</span><span class="muted small">${done}% gedaan</span></div>
-      <h2 class="hero-title">${esc(a.dayName)}</h2>
+      <div class="hero-main"><span class="day-badge">${icon('bolt')}</span><div class="grow"><h2 class="hero-title">${esc(a.dayName)}</h2></div></div>
+      <div class="progress hero-progress"><span style="width:${done}%"></span></div>
       <div class="hero-actions">${btn('Ga verder', 'go', { cls: 'primary grow', data: { tab: 'train' }, ic: 'bolt' })}</div>
     </section>`;
   }
   const day = nextCircuitDay(state);
   const pi = phaseInfo(state);
-  return `<section class="card hero">
+  return `<section class="card hero" style="${dayStyle(day.id)}">
     <div class="hero-top"><span class="eyebrow">Volgende training</span><span class="pill">Fase ${pi.phase.n} · week ${Math.min(pi.week, 12)}</span></div>
-    <h2 class="hero-title">${esc(day.name)}</h2>
-    <p class="muted small">${esc(day.focus)} · ~${estCircuitMinutes(state, day, pi)} min · ${pi.rounds} rondes</p>
+    <div class="hero-main">
+      <span class="day-badge">${icon('bolt')}</span>
+      <div class="grow">
+        <h2 class="hero-title">${esc(day.name)}</h2>
+        <p class="muted small">${esc(day.focus)} · ~${estCircuitMinutes(state, day, pi)} min · ${pi.rounds} rondes</p>
+      </div>
+    </div>
     <p class="hero-ex">${esc(day.circuit.map(exName).join(' · '))}</p>
     <div class="hero-actions">
       ${btn('Start training', 'c-start', { cls: 'primary grow', data: { day: day.id }, ic: 'bolt' })}

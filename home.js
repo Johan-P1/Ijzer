@@ -11,7 +11,7 @@ import { lineChart, hbarChart, heatmap, chartWidth } from './charts.js';
 import { reviewBanner } from './program.js';
 import {
   esc, icon, fmt1, fmtKg, fmtCompact, signed, todayISO, addDaysISO, fmtDateLong, relDay,
-  DAY_SHORT, parseNum, fmtDay, daysBetween,
+  DAY_SHORT, parseNum, fmtDay, daysBetween, dayStyle,
 } from './util.js';
 
 export function view() {
@@ -23,7 +23,8 @@ export function view() {
       <span class="eyebrow">${esc(fmtDateLong(todayISO()))}</span>
       <button class="icon-btn" data-act="go" data-tab="settings" aria-label="Instellingen">${icon('sliders')}</button>
     </header>
-    <h1 class="title">${greet}${name ? ', ' + esc(name) : ''}</h1>
+    <h1 class="title greet">${greet}${name ? ', ' + esc(name) : ''}&nbsp;<span class="wave" aria-hidden="true">👋</span></h1>
+    <p class="greet-sub">${esc(greetLine())}</p>
     ${installBanner()}
     ${backupBanner()}
     ${heroCard()}
@@ -36,6 +37,19 @@ export function view() {
     ${bodyweightCard()}
     ${prCard()}
   `;
+}
+
+// Eén vriendelijk zinnetje onder de begroeting, afhankelijk van je week.
+function greetLine() {
+  if (state.active) return 'Je training loopt nog. Even afmaken?';
+  const { start, end } = thisWeek();
+  const n = workoutsBetween(state, start, end).length;
+  const target = state.settings.trainingDays.length;
+  const streak = weekStreak(state);
+  if (n >= target) return `Weekdoel gehaald met ${n} trainingen. Sterk bezig!`;
+  if (n > 0) return `Al ${n} ${n === 1 ? 'training' : 'trainingen'} deze week, nog ${target - n} te gaan.`;
+  if (streak > 1) return `${streak} weken op rij je doel gehaald. Houd die reeks vast!`;
+  return 'Klaar voor je eerste training van de week?';
 }
 
 const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
@@ -66,10 +80,13 @@ function heroCard() {
   if (a) {
     const total = a.exercises.reduce((s, e) => s + e.sets.length, 0);
     const done = a.exercises.reduce((s, e) => s + e.sets.filter((x) => x.done).length, 0);
-    return `<section class="card hero">
+    return `<section class="card hero" style="${dayStyle(a.dayId)}">
       <div class="hero-top"><span class="pill live"><i></i>Bezig</span><span class="muted tnum" data-clock="elapsed"></span></div>
-      <h2 class="hero-title">${esc(a.dayName)}</h2>
-      <p class="muted">${done} van ${total} sets afgevinkt</p>
+      <div class="hero-main">
+        <span class="day-badge">${icon('dumbbell')}</span>
+        <div class="grow"><h2 class="hero-title">${esc(a.dayName)}</h2><p class="muted small">${done} van ${total} sets afgevinkt</p></div>
+      </div>
+      <div class="progress hero-progress"><span style="width:${total ? (done / total) * 100 : 0}%"></span></div>
       <div class="hero-actions">${btn('Ga verder', 'go', { cls: 'primary grow', data: { tab: 'train' }, ic: 'bolt' })}</div>
     </section>`;
   }
@@ -81,10 +98,15 @@ function heroCard() {
   }
   const cyc = cycleInfo(state);
   const names = day.items.map((it) => EX[it.exId]?.name).filter(Boolean).join(' · ');
-  return `<section class="card hero">
+  return `<section class="card hero" style="${dayStyle(day.id)}">
     <div class="hero-top"><span class="eyebrow">Volgende training</span>${cyc.deload ? '<span class="pill warn">Deload-week</span>' : `<span class="pill">Week ${cyc.week} van ${cyc.every}</span>`}</div>
-    <h2 class="hero-title">${esc(day.name)}</h2>
-    <p class="muted small">${day.items.length} oefeningen · ~${estMinutes(day)} min · ${esc(GOALS[state.program.goal]?.label || '')}</p>
+    <div class="hero-main">
+      <span class="day-badge">${icon('dumbbell')}</span>
+      <div class="grow">
+        <h2 class="hero-title">${esc(day.name)}</h2>
+        <p class="muted small">${day.items.length} oefeningen · ~${estMinutes(day)} min · ${esc(GOALS[state.program.goal]?.label || '')}</p>
+      </div>
+    </div>
     <p class="hero-ex">${esc(names)}</p>
     <div class="hero-actions">
       ${btn('Start training', 'start', { cls: 'primary grow', data: { day: day.id }, ic: 'bolt' })}
@@ -127,11 +149,13 @@ function kpiTiles() {
   const delta = dv == null
     ? '<span class="tile-d muted">vs vorige 7 dagen</span>'
     : `<span class="tile-d ${dv >= 0 ? 'up' : 'down'}">${dv >= 0 ? '▲' : '▼'} ${fmt1(Math.abs(dv))}% <span class="muted">vs vorige 7 d</span></span>`;
+  const tile = (label, ic, color, value, sub) =>
+    `<div class="tile" style="--c:${color[0]};--cs:${color[1]}"><div class="tile-top"><span class="tile-l">${label}</span><span class="tile-ic">${icon(ic)}</span></div><span class="tile-v">${value}</span>${sub}</div>`;
   return `<div class="tiles">
-    <div class="tile"><span class="tile-l">Trainingen</span><span class="tile-v">${n}<small>/${target}</small></span><span class="tile-d muted">deze week</span></div>
-    <div class="tile"><span class="tile-l">Volume · 7 dagen</span><span class="tile-v">${fmtCompact(v7)}<small> kg</small></span>${delta}</div>
-    <div class="tile"><span class="tile-l">Weekreeks</span><span class="tile-v">${streak}<small> wk</small></span><span class="tile-d muted">weekdoel gehaald</span></div>
-    <div class="tile"><span class="tile-l">Records</span><span class="tile-v">${prs}</span><span class="tile-d muted">laatste 30 dagen</span></div>
+    ${tile('Trainingen', 'calendar', ['#5a9cf2', 'rgba(90,156,242,0.16)'], `${n}<small>/${target}</small>`, '<span class="tile-d muted">deze week</span>')}
+    ${tile('Volume', 'bolt', ['#2fbf8f', 'rgba(47,191,143,0.16)'], `${fmtCompact(v7)}<small> kg</small>`, delta)}
+    ${tile('Weekreeks', 'flame', ['#f0864a', 'rgba(240,134,74,0.16)'], `${streak}<small> wk</small>`, '<span class="tile-d muted">weekdoel gehaald</span>')}
+    ${tile('Records', 'trophy', ['#f2b84b', 'rgba(242,184,75,0.16)'], `${prs}`, '<span class="tile-d muted">laatste 30 dagen</span>')}
   </div>`;
 }
 

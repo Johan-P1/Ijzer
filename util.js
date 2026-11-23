@@ -107,6 +107,20 @@ export function fmtClock(sec) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+// ---------- dagkleuren ----------
+// Elke trainingsdag (d1/d2/d3/d4, c1/c2/c3) krijgt een eigen kleur; zonder dag = accentblauw.
+const DAY_COLORS = ['#2fbf8f', '#f0864a', '#9b8cf2', '#f2b84b'];
+export function dayColor(id) {
+  const n = parseInt(String(id ?? '').replace(/\D/g, ''), 10);
+  return Number.isFinite(n) && n > 0 ? DAY_COLORS[(n - 1) % DAY_COLORS.length] : '#5a9cf2';
+}
+// Inline CSS-variabelen: --day (vol), --day-soft (achtergrond), --day-glow (gloed).
+export function dayStyle(id) {
+  const c = dayColor(id);
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+  return `--day:${c};--day-soft:rgba(${r},${g},${b},0.16);--day-glow:rgba(${r},${g},${b},0.30)`;
+}
+
 // ---------- iconen (24×24, lijn) ----------
 const P = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9v11.5h13V9"/><path d="M10 20.5v-6h4v6"/>',

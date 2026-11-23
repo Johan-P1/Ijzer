@@ -30,7 +30,8 @@ export const EXERCISES = [
   { id: 'rdl', name: 'Romanian deadlift', equip: 'barbell', needs: [], primary: ['hamstrings', 'glutes'], secondary: ['back'], compound: true, alt: [] },
   { id: 'deadlift', name: 'Deadlift', equip: 'barbell', needs: [], primary: ['glutes', 'hamstrings', 'back'], secondary: ['quads', 'core'], compound: true, key: true, alt: [], est: [['sumo_deadlift', 1.05]] },
   { id: 'sumo_deadlift', name: 'Sumo deadlift', equip: 'barbell', needs: [], primary: ['glutes', 'hamstrings', 'quads'], secondary: ['back', 'core'], compound: true, alt: ['deadlift'], est: [['deadlift', 0.95]] },
-  { id: 'hip_thrust', name: 'Hip thrust', equip: 'barbell', needs: ['bench'], primary: ['glutes'], secondary: ['hamstrings'], compound: true, alt: ['rdl'], est: [['rdl', 1.2]] },
+  { id: 'hip_thrust', name: 'Hip thrust', equip: 'barbell', needs: ['bench'], primary: ['glutes'], secondary: ['hamstrings'], compound: true, alt: ['rdl'], est: [['rdl', 1.2], ['squat', 0.8]],
+    how: 'Schouderbladen tegen de bank, stang over je heupen (leg er een handdoek onder), voeten plat. Duw je heupen omhoog tot een rechte lijn van knie tot schouder, 1 tel vasthouden, kin licht naar je borst.' },
   { id: 'calf_raise', name: 'Calf raise', equip: 'barbell', needs: ['rack'], primary: ['calves'], secondary: [], alt: [] },
   { id: 'plate_glute_bridge', name: 'Glute bridge met plate', equip: 'plate', startW: 20, needs: [], primary: ['glutes'], secondary: ['hamstrings'], alt: ['hip_thrust'],
     how: 'Op je rug, voeten plat, plate op je heupen. Duw je heupen omhoog tot een rechte lijn, 1 tel vasthouden, billen aanspannen. Rugvriendelijk.' },
@@ -52,7 +53,8 @@ export const EXERCISES = [
     how: 'Plate met twee handen voor je borst. Draai hem langzaam rond je hoofd, dicht langs je nek, buik aangespannen. Wissel elke rep van richting. Goed voor beweeglijke, gezonde schouders.' },
   { id: 'svend_press', name: 'Svend press (plate)', equip: 'plate', startW: 5, needs: [], primary: ['chest'], secondary: ['shoulders'], alt: ['db_fly'],
     how: 'Druk een plate tussen je handpalmen tegen je borst. Duw hem recht naar voren en weer terug, en blijf je handen tegen elkaar knijpen.' },
-  { id: 'db_lateral', name: 'Lateral raise', equip: 'dumbbell', needs: [], primary: ['shoulders'], secondary: [], alt: [] },
+  { id: 'db_lateral', name: 'Lateral raise', equip: 'dumbbell', startW: 5, needs: [], primary: ['shoulders'], secondary: [], alt: [],
+    how: 'Armen licht gebogen, til de dumbbells zijwaarts tot schouderhoogte, niet hoger. Langzaam laten zakken; liever lichter en strak dan zwaar met zwaaien.' },
   { id: 'plate_triceps', name: 'Liggende triceps extension (plate)', equip: 'plate', needs: ['bench'], primary: ['triceps'], secondary: [], alt: ['db_triceps'] },
   { id: 'db_triceps', name: 'Overhead triceps extension', equip: 'dumbbell', needs: [], primary: ['triceps'], secondary: [], alt: [] },
 
@@ -63,7 +65,8 @@ export const EXERCISES = [
   { id: 'pullup', name: 'Pull-ups', equip: 'bodyweight', bw: 1, needs: ['pullup'], primary: ['back'], secondary: ['biceps'], compound: true, alt: ['inverted_row', 'db_row'], est: [['chinup', 1]] },
   { id: 'chinup', name: 'Chin-ups', equip: 'bodyweight', bw: 1, needs: ['pullup'], primary: ['back', 'biceps'], secondary: [], compound: true, alt: ['pullup', 'inverted_row'], est: [['pullup', 1]] },
   { id: 'inverted_row', name: 'Inverted row', equip: 'bodyweight', bw: 0.5, needs: ['rack'], primary: ['back'], secondary: ['biceps'], compound: true, alt: ['db_row'] },
-  { id: 'rear_delt', name: 'Rear delt fly', equip: 'dumbbell', needs: [], primary: ['shoulders'], secondary: ['back'], alt: [] },
+  { id: 'rear_delt', name: 'Rear delt fly', equip: 'dumbbell', needs: [], primary: ['shoulders'], secondary: ['back'], alt: [],
+    how: 'Voorovergebogen met rechte rug, armen licht gebogen. Til de dumbbells zijwaarts tot je schouderbladen samenknijpen, 1 tel vasthouden, langzaam terug. Kies een gewicht waarmee dat lukt zonder zwaaien.' },
   { id: 'plate_pullover', name: 'Pullover met plate', equip: 'plate', startW: 10, needs: ['bench'], primary: ['back'], secondary: ['chest'], alt: ['db_row'],
     how: 'Lig dwars of in de lengte op de bank, plate met twee handen boven je borst. Laat hem met licht gebogen armen achter je hoofd zakken tot je een rek in je lats voelt, en trek hem terug.' },
   { id: 'shrug', name: 'Shrugs', equip: 'barbell', needs: ['rack'], primary: ['back'], secondary: [], alt: [] },
@@ -146,12 +149,12 @@ export const SPLITS = {
   ppl: {
     label: 'Benen / Duwen / Trekken',
     days: 3,
-    desc: 'Je vertrouwde indeling, ~45 min per training, met plate-oefeningen tussendoor. Deadlift in lage reps voor je onderrug.',
+    desc: 'Je vertrouwde indeling, ~40–45 min per training. Deadlift in lage reps voor je onderrug.',
     // Derde element = afwijkende sets/reps voor die oefening.
     template: [
-      { name: 'Benen', ex: [['squat', 'main'], ['reverse_lunge', 'secondary'], ['plate_glute_bridge', 'accessory'], ['calf_raise', 'accessory'], ['plate_twist', 'accessory', { sets: 2, lo: 10, hi: 15 }]] },
-      { name: 'Duwen', ex: [['bench', 'main'], ['incline_bench', 'secondary'], ['ohp', 'secondary'], ['plate_halo', 'accessory', { sets: 2, lo: 8, hi: 12 }], ['plate_triceps', 'accessory']] },
-      { name: 'Trekken', ex: [['deadlift', 'main'], ['row', 'secondary'], ['plate_pullover', 'accessory'], ['shrug', 'accessory'], ['db_curl', 'accessory']] },
+      { name: 'Benen', ex: [['squat', 'main'], ['reverse_lunge', 'secondary'], ['hip_thrust', 'secondary'], ['calf_raise', 'accessory']] },
+      { name: 'Duwen', ex: [['bench', 'main'], ['incline_bench', 'secondary'], ['ohp', 'secondary'], ['db_lateral', 'accessory', { sets: 2, lo: 12, hi: 15 }], ['plate_triceps', 'accessory']] },
+      { name: 'Trekken', ex: [['deadlift', 'main'], ['row', 'secondary'], ['shrug', 'accessory'], ['rear_delt', 'accessory', { sets: 2, lo: 12, hi: 15 }], ['db_curl', 'accessory']] },
     ],
   },
   fullbody3: {

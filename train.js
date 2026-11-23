@@ -6,7 +6,7 @@ import {
   nextDay, estMinutes, exerciseSessions, plateBreakdown, warmups, KIND_LABEL, makeEntry, refreshSuggestions,
   computePRs, workoutSummary, schemeFor, defaultRoleFor, isAvailable, barLoads, plateOptions, plateCombo, roundLoad,
 } from './engine.js';
-import { esc, icon, fmtKg, fmt1, fmtDay, fmtDate, fmtCompact, fmtMinutes, parseNum, todayISO } from './util.js';
+import { esc, icon, fmtKg, fmt1, fmtDay, fmtDate, fmtCompact, fmtMinutes, parseNum, todayISO, dayStyle } from './util.js';
 
 const doc = () => ui.edit || state.active;
 const persist = () => {
@@ -23,7 +23,8 @@ function picker() {
   const p = state.program;
   const next = nextDay(state);
   const days = (p?.days || [])
-    .map((d) => `<button class="row row-btn" data-act="start" data-day="${d.id}">
+    .map((d) => `<button class="row row-btn" data-act="start" data-day="${d.id}" style="${dayStyle(d.id)}">
+      <span class="row-ic day">${esc(d.name.charAt(0))}</span>
       <div class="grow">
         <div class="row-t">${esc(d.name)}${next?.id === d.id ? ' <span class="pill accent">Volgende</span>' : ''}</div>
         <div class="row-s">${esc(d.items.map((it) => EX[it.exId]?.name).filter(Boolean).join(' · '))}</div>
@@ -37,6 +38,7 @@ function picker() {
       <div class="card-h"><h3>Kies je training</h3><span class="muted small">${esc(p?.name || '')}</span></div>
       ${days}
       <button class="row row-btn" data-act="start" data-day="">
+        <span class="row-ic day">${icon('plus')}</span>
         <div class="grow"><div class="row-t">Vrije training</div><div class="row-s">Stel zelf je oefeningen samen</div></div>${icon('right', 'chev')}
       </button>
     </section>`;
@@ -49,7 +51,7 @@ function editor(d, editing) {
   const head = `<div class="wk-head">
     <button class="icon-btn" data-act="${editing ? 'edit-cancel' : 'go'}" data-tab="home" aria-label="Terug">${icon(editing ? 'x' : 'left')}</button>
     <div class="grow center">
-      <div class="wk-title">${esc(d.dayName)}</div>
+      <div class="wk-title"><span class="day-dot"></span>${esc(d.dayName)}</div>
       <div class="wk-sub">${editing ? 'Bewerken · ' + esc(fmtDate(d.date)) : `${icon('clock')}<span data-clock="elapsed" class="tnum"></span><span class="dot-sep"></span>${icon('timer')}rust <span data-clock="rest" class="tnum"></span>`}</div>
     </div>
     <button class="btn sm primary" data-act="${editing ? 'edit-save' : 'finish'}">${editing ? 'Opslaan' : 'Klaar'}</button>
@@ -61,7 +63,7 @@ function editor(d, editing) {
         <div class="progress"><span style="width:${total ? (done / total) * 100 : 0}%"></span></div>
         <span class="muted small tnum">${done}/${total} sets</span>
       </div>`;
-  return `
+  return `<div class="day-scope" style="${dayStyle(d.dayId)}">
     ${head}
     ${flags}
     ${d.exercises.map((e, i) => exCard(d, e, i, editing)).join('')}
@@ -73,7 +75,7 @@ function editor(d, editing) {
     ${editing
       ? btn('Training verwijderen', 'delete-workout', { cls: 'ghost danger block', data: { id: d.id }, ic: 'trash' })
       : `${btn('Training afronden', 'finish', { cls: 'primary block', ic: 'check' })}<div class="gap-s"></div>${btn('Training weggooien', 'discard', { cls: 'ghost danger block' })}`}
-  `;
+  </div>`;
 }
 
 function unitLabel(ex) {
@@ -96,6 +98,7 @@ function exCard(d, e, i, editing) {
   const kind = !editing && e.sg?.kind;
   return `<section class="card ex${allDone ? ' ex-done' : ''}">
     <div class="ex-h">
+      <span class="ex-num">${allDone ? icon('check') : i + 1}</span>
       <div class="grow">
         <h3 class="ex-name">${esc(ex.name)}</h3>
         <div class="ex-target">${e.target.sets} × ${e.target.lo}–${e.target.hi} reps${ex.side ? ' per ' + ex.side : ''}${kind ? ` <button class="kind k-${kind}" data-act="help-open">${kindIcon(kind)}${esc(KIND_LABEL[kind])}</button>` : ''}</div>

@@ -4,7 +4,7 @@ import { ui, go, openSheet, registerActions, toast, btn } from './core.js';
 import { EX } from './data.js';
 import { CX, FEELING } from './cdata.js';
 import { workoutSummary, computePRs } from './engine.js';
-import { esc, icon, fmtKg, fmtDate, fmtDateLong, fmtCompact, fmtMinutes, parseDate, MONTH_LONG } from './util.js';
+import { esc, icon, fmtKg, fmtDate, fmtDateLong, fmtCompact, fmtMinutes, parseDate, MONTH_LONG, dayStyle } from './util.js';
 
 export function view() {
   const prCount = {};
@@ -35,8 +35,8 @@ function workoutRow(w, prs) {
   const sm = workoutSummary(state, w);
   if (w.style === 'circuit') {
     const c = w.circuit || {};
-    return `<button class="row row-btn" data-act="open-workout" data-id="${w.id}">
-      <span class="row-ic train">${icon('bolt')}</span>
+    return `<button class="row row-btn" data-act="open-workout" data-id="${w.id}" style="${dayStyle(w.dayId)}">
+      <span class="row-ic day">${icon('bolt')}</span>
       <div class="grow">
         <div class="row-t">${esc(w.dayName)}</div>
         <div class="row-s">${esc(fmtDate(w.date))} · ${sm.minutes ? fmtMinutes(sm.minutes) : '–'} · ${c.roundsDone ?? 0}/${c.roundsPlanned ?? 0} rondes${c.rpe ? ' · ' + esc(FEELING[c.rpe - 1]) : ''}</div>
@@ -44,8 +44,8 @@ function workoutRow(w, prs) {
       ${icon('right', 'chev')}
     </button>`;
   }
-  return `<button class="row row-btn" data-act="open-workout" data-id="${w.id}">
-    <span class="row-ic train">${icon('dumbbell')}</span>
+  return `<button class="row row-btn" data-act="open-workout" data-id="${w.id}" style="${dayStyle(w.dayId)}">
+    <span class="row-ic day">${icon('dumbbell')}</span>
     <div class="grow">
       <div class="row-t">${esc(w.dayName)}${w.deload ? ' <span class="pill">Deload</span>' : ''}</div>
       <div class="row-s">${esc(fmtDate(w.date))} · ${sm.sets} sets · ${fmtCompact(sm.volume)} kg${sm.minutes ? ' · ' + fmtMinutes(sm.minutes) : ''}</div>
