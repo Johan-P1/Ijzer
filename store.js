@@ -5,12 +5,20 @@ import { todayISO } from './util.js';
 const KEY = 'ijzer:v1';
 export const VERSION = 1;
 
+// De thuisgym: stang 18 kg, kleinste schijven 2 kg (1 paar), dumbbellschijfjes vanaf 0,5 kg → stap 1 kg.
+const HOME_PLATES = { '25': 2, '20': 2, '15': 0, '10': 2, '5': 2, '2.5': 0, '2': 2, '1.25': 0 };
+
+// Oude standaardwaarden (vóór 1.2.0) die niet klopten met de echte apparatuur.
+function isOldDefaultEquipment(eq) {
+  return eq && eq.barWeight === 20 && eq.dbStep === 2.5 && eq.plates?.['2.5'] === 4 && !eq.plates?.['2'];
+}
+
 export function defaultState() {
   const equipment = {
-    barWeight: 20,
-    plates: { '25': 2, '20': 2, '15': 0, '10': 2, '5': 2, '2.5': 4, '1.25': 0 },
+    barWeight: 18,
+    plates: { ...HOME_PLATES },
     dbMax: 15,
-    dbStep: 2.5,
+    dbStep: 1,
     bench: true,
     incline: true,
     rack: true,
@@ -32,6 +40,7 @@ export function defaultState() {
     active: null,
     lastBackup: null,
     seenWelcome: false,
+    fixes: { lungePerLeg: true },
   };
 }
 
@@ -47,6 +56,16 @@ function migrate(s) {
   delete out.activities;
   delete out.settings.bjjDay;
   if (!s.settings?.goalSince) out.settings.goalSince = s.program?.startDate || todayISO();
+  // Eenmalig: de oude, foute standaard-apparatuur vervangen door die van de thuisgym.
+  if (isOldDefaultEquipment(s.equipment)) {
+    out.equipment = { ...out.equipment, barWeight: 18, dbStep: 1, plates: { ...HOME_PLATES } };
+  }
+  // Eenmalig (1.2.0): backstep lunges werden gelogd als totaal van beide benen; vanaf nu per been.
+  out.fixes = { ...(s.fixes || {}) };
+  if (!out.fixes.lungePerLeg) {
+    for (const w of out.workouts) for (const e of w.exercises || []) if (e.exId === 'reverse_lunge') for (const st of e.sets || []) if (st.r) st.r = Math.max(1, Math.round(st.r / 2));
+    out.fixes.lungePerLeg = true;
+  }
   out.version = VERSION;
   return out;
 }

@@ -4,7 +4,7 @@ import { ui, go, openSheet, closeSheet, registerActions, rerender, toast, btn, s
 import { EX, MUSCLES, MUSCLE_ORDER, EQUIP_LABEL, GOALS } from './data.js';
 import {
   nextDay, estMinutes, exerciseSessions, plateBreakdown, warmups, KIND_LABEL, makeEntry, refreshSuggestions,
-  computePRs, workoutSummary, schemeFor, defaultRoleFor, isAvailable, barStep, plateOptions, plateCombo, roundLoad,
+  computePRs, workoutSummary, schemeFor, defaultRoleFor, isAvailable, barLoads, plateOptions, plateCombo, roundLoad,
 } from './engine.js';
 import { esc, icon, fmtKg, fmt1, fmtDay, fmtDate, fmtCompact, fmtMinutes, parseNum, todayISO } from './util.js';
 
@@ -98,16 +98,17 @@ function exCard(d, e, i, editing) {
     <div class="ex-h">
       <div class="grow">
         <h3 class="ex-name">${esc(ex.name)}</h3>
-        <div class="ex-target">${e.target.sets} × ${e.target.lo}–${e.target.hi} reps${kind ? ` <button class="kind k-${kind}" data-act="help-open">${kindIcon(kind)}${esc(KIND_LABEL[kind])}</button>` : ''}</div>
+        <div class="ex-target">${e.target.sets} × ${e.target.lo}–${e.target.hi} reps${ex.side ? ' per ' + ex.side : ''}${kind ? ` <button class="kind k-${kind}" data-act="help-open">${kindIcon(kind)}${esc(KIND_LABEL[kind])}</button>` : ''}</div>
       </div>
       <button class="icon-btn" data-act="ex-menu" data-i="${i}" aria-label="Opties">${icon('more')}</button>
     </div>
     ${kind && e.sg.note ? `<p class="ex-note">${esc(e.sg.note)}</p>` : ''}
-    ${prev ? `<p class="ex-meta"><span class="muted">Vorige · ${esc(fmtDay(prev.date))}</span> ${prev.sets.map((s) => `${ex.noLoad ? '' : fmtKg(s.w) + '×'}${s.r}`).join('&nbsp; ')}</p>` : ''}
+    ${ex.how && !prev ? `<p class="ex-meta how">${icon('info')}<span>${esc(ex.how)}</span></p>` : ''}
+    ${prev ? `<p class="ex-meta"><span class="muted">Vorige · ${esc(fmtDay(prev.date))}${prev.deload ? ' (deload)' : ''}</span> ${prev.sets.map((s) => `${ex.noLoad ? '' : fmtKg(s.w) + '×'}${s.r}`).join('&nbsp; ')}</p>` : ''}
     ${plates ? `<p class="ex-meta">${icon('layers')}<span class="muted">Per kant</span> ${plates.length ? plates.map(fmtKg).join(' + ') : 'lege stang'}</p>` : ''}
     ${combo && combo.length > 1 ? `<p class="ex-meta">${icon('layers')}<span class="muted">Pak samen</span> ${combo.map(fmtKg).join(' + ')} kg</p>` : ''}
     ${wu.length ? `<p class="ex-meta">${icon('flame')}<span class="muted">Opwarmen</span> ${wu.map((s) => `${fmtKg(s.w)}×${s.r}`).join(' · ')}</p>` : ''}
-    <div class="set set-h"><span>Set</span><span>${unitLabel(ex)}</span><span>Reps</span><span></span></div>
+    <div class="set set-h"><span>Set</span><span>${unitLabel(ex)}</span><span>${ex.side ? 'Reps p/' + ex.side : 'Reps'}</span><span></span></div>
     ${e.sets.map((s, j) => setRow(ex, s, i, j)).join('')}
     <div class="ex-foot">
       <button class="btn sm ghost" data-act="add-set" data-i="${i}">${icon('plus')}<span>Set</span></button>
@@ -139,10 +140,16 @@ function stepWeight(ex, w, dir) {
     if (dir > 0) return sizes.find((s) => s > w + 1e-6) ?? w;
     return [...sizes].reverse().find((s) => s < w - 1e-6) ?? w;
   }
-  const st = ex.equip === 'barbell' ? barStep(eq) : eq.dbStep || 2.5;
-  if (w == null) return ex.equip === 'barbell' ? eq.barWeight : ex.equip === 'bodyweight' ? 0 : st;
-  const min = ex.equip === 'barbell' ? eq.barWeight : 0;
-  return Math.max(min, roundLoad(ex, w + dir * st, eq));
+  if (ex.equip === 'barbell') {
+    // Niet elke stap is even groot (bijv. 18 → 22 → 28), dus kies uit de laadbare gewichten.
+    const loads = barLoads(eq);
+    if (w == null) return eq.barWeight;
+    if (dir > 0) return loads.find((s) => s > w + 1e-6) ?? w;
+    return [...loads].reverse().find((s) => s < w - 1e-6) ?? loads[0];
+  }
+  const st = eq.dbStep || 2.5;
+  if (w == null) return ex.equip === 'bodyweight' ? 0 : st;
+  return Math.max(0, roundLoad(ex, w + dir * st, eq));
 }
 
 // Na een gewichtswijziging: ook de volgende, nog niet afgevinkte sets meenemen.
@@ -151,6 +158,14 @@ function propagateWeight(e, j, w) {
 }
 
 // ---------- afronden ----------
+// Bleef de training open staan (laatste set > 2 uur geleden)? Dan eindigt hij kort na die laatste set.
+function endTime(d) {
+  if (d.finishedAt) return d.finishedAt;
+  const now = Date.now();
+  const last = d.lastSetAt || d.startedAt;
+  return now - last > 2 * 3600000 ? last + 5 * 60000 : now;
+}
+
 function finishedCopy(d) {
   return {
     id: d.id,
@@ -159,7 +174,7 @@ function finishedCopy(d) {
     dayName: d.dayName,
     date: d.date,
     startedAt: d.startedAt,
-    finishedAt: d.finishedAt || Date.now(),
+    finishedAt: endTime(d),
     deload: !!d.deload,
     notes: (d.notes || '').trim(),
     exercises: d.exercises
@@ -177,7 +192,7 @@ export const sheets = {
     const prs = computePRs(state, fin).events.filter((e) => e.workoutId === fin.id);
     const open = d.exercises.reduce((s, e) => s + e.sets.filter((x) => !x.done).length, 0);
     const fillable = d.exercises.reduce((s, e) => s + e.sets.filter((x) => !x.done && x.r > 0 && (x.w != null || EX[e.exId]?.equip === 'bodyweight')).length, 0);
-    const mins = (Date.now() - d.startedAt) / 60000;
+    const mins = (endTime(d) - d.startedAt) / 60000;
     return {
       title: 'Training afronden',
       body: `
@@ -200,7 +215,8 @@ export const sheets = {
     const ex = EX[e.exId];
     return {
       title: ex.name,
-      body: `<p class="muted small">${esc(EQUIP_LABEL[ex.equip])} · ${esc(ex.primary.map((m) => MUSCLES[m]).join(', '))}${ex.secondary.length ? ' (+ ' + esc(ex.secondary.map((m) => MUSCLES[m]).join(', ')) + ')' : ''}</p>
+      body: `<p class="muted small">${esc(EQUIP_LABEL[ex.equip])} · ${esc(ex.primary.map((m) => MUSCLES[m]).join(', '))}${ex.secondary.length ? ' (+ ' + esc(ex.secondary.map((m) => MUSCLES[m]).join(', ')) + ')' : ''}${ex.side ? ' · reps per ' + esc(ex.side) : ''}</p>
+        ${ex.how ? `<p class="small">${esc(ex.how)}</p>` : ''}
         <div class="menu">
           <button class="row row-btn" data-act="ex-replace" data-i="${sh.i}">${icon('swap')}<span class="grow">Vervangen</span></button>
           <button class="row row-btn" data-act="ex-move" data-i="${sh.i}" data-d="-1"${sh.i === 0 ? ' disabled' : ''}>${icon('up')}<span class="grow">Omhoog</span></button>

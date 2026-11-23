@@ -13,7 +13,7 @@ import * as cv from './cviews.js';
 import * as onboard from './onboard.js';
 import { mountAnims } from './anim.js';
 
-window.IJZER_VERSION = '1.1.1';
+window.IJZER_VERSION = '1.2.0';
 
 const VIEWS = { home: home.view, train: train.view, progress: progress.view, history: history.view, program: program.view, settings: settings.view };
 // Circuitmodus gebruikt eigen schermen voor home, train, voortgang en schema.

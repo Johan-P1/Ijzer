@@ -47,6 +47,41 @@ export function plateCombo(w, eq) {
   return null;
 }
 
+// Per kant laadbare gewichten → kleinste set schijven (in eenheden van 0,25 kg).
+// Niet elke stap is even groot: met 25/20/10/5/2 kom je op 18, 22, 28, 32, 38 …
+let comboCache = { key: null, map: null };
+function perSideCombos(eq) {
+  const key = JSON.stringify(eq.plates || {});
+  if (comboCache.key === key) return comboCache.map;
+  const items = [];
+  for (const [kg, n] of Object.entries(eq.plates || {})) for (let i = 0; i < Math.floor(n / 2); i++) items.push(Number(kg));
+  items.sort((a, b) => b - a);
+  let map = new Map([[0, []]]);
+  for (const p of items) {
+    const next = new Map(map);
+    for (const [u, combo] of map) {
+      const nu = u + Math.round(p * 4);
+      const c = [...combo, p];
+      if (!next.has(nu) || next.get(nu).length > c.length) next.set(nu, c);
+    }
+    map = next;
+  }
+  comboCache = { key, map };
+  return map;
+}
+
+// Alle totaalgewichten die je op de stang kunt laden, oplopend.
+export function barLoads(eq) {
+  return [...perSideCombos(eq).keys()].map((u) => +(eq.barWeight + u / 2).toFixed(3)).sort((a, b) => a - b);
+}
+
+function pickFrom(list, w, dir) {
+  if (!list.length) return w;
+  if (dir === 'down') return [...list].reverse().find((s) => s <= w + EPS) ?? list[0];
+  if (dir === 'up') return list.find((s) => s >= w - EPS) ?? list[list.length - 1];
+  return list.reduce((best, s) => (Math.abs(s - w) < Math.abs(best - w) ? s : best), list[0]);
+}
+
 // Kleinste stap op de stang = kleinste schijf waarvan je een paar hebt, × 2.
 export function barStep(eq) {
   const pairs = Object.entries(eq.plates || {})
@@ -74,22 +109,14 @@ function roundTo(v, step, dir) {
 export function roundLoad(ex, w, eq, dir = 'nearest') {
   if (w == null) return null;
   switch (ex.equip) {
-    case 'barbell': {
-      const bar = eq.barWeight;
-      const v = bar + roundTo(Math.max(0, w - bar), barStep(eq), dir);
-      return Math.min(v, barMax(eq));
-    }
+    case 'barbell':
+      return pickFrom(barLoads(eq), w, dir);
     case 'dumbbell': {
       const st = eq.dbStep || 2.5;
       return Math.min(Math.max(roundTo(w, st, dir), st), eq.dbMax);
     }
-    case 'plate': {
-      const sizes = plateOptions(eq);
-      if (!sizes.length) return w;
-      if (dir === 'down') return [...sizes].reverse().find((s) => s <= w + EPS) ?? sizes[0];
-      if (dir === 'up') return sizes.find((s) => s >= w - EPS) ?? sizes[sizes.length - 1];
-      return sizes.reduce((best, s) => (Math.abs(s - w) < Math.abs(best - w) ? s : best), sizes[0]);
-    }
+    case 'plate':
+      return pickFrom(plateOptions(eq), w, dir);
     default: {
       if (ex.noLoad) return 0;
       return Math.max(0, roundTo(w, eq.dbStep || 2.5, dir));
@@ -100,10 +127,8 @@ export function roundLoad(ex, w, eq, dir = 'nearest') {
 // Eén stap zwaarder, of null als je aan het maximum van je apparatuur zit.
 export function nextLoad(ex, w, eq) {
   switch (ex.equip) {
-    case 'barbell': {
-      const n = w + barStep(eq);
-      return n <= barMax(eq) + EPS ? n : null;
-    }
+    case 'barbell':
+      return barLoads(eq).find((s) => s > w + EPS) ?? null;
     case 'dumbbell': {
       const n = w + (eq.dbStep || 2.5);
       return n <= eq.dbMax + EPS ? n : null;
@@ -117,28 +142,15 @@ export function nextLoad(ex, w, eq) {
 
 // Welke schijven per kant? Geeft null als het niet exact kan.
 export function plateBreakdown(w, eq) {
-  let per = (w - eq.barWeight) / 2;
+  const per = (w - eq.barWeight) / 2;
   if (per < -EPS) return null;
-  const out = [];
-  const sizes = Object.entries(eq.plates || {})
-    .map(([kg, n]) => ({ kg: Number(kg), pairs: Math.floor(n / 2) }))
-    .filter((p) => p.pairs > 0)
-    .sort((a, b) => b.kg - a.kg);
-  for (const p of sizes) {
-    let n = p.pairs;
-    while (n > 0 && per >= p.kg - EPS) {
-      out.push(p.kg);
-      per -= p.kg;
-      n--;
-    }
-  }
-  return Math.abs(per) < EPS ? out : null;
+  return perSideCombos(eq).get(Math.round(per * 4)) ?? null;
 }
 
 export function warmups(ex, w, eq) {
   if (ex.equip !== 'barbell' || !w) return [];
   const bar = eq.barWeight;
-  if (w < bar + 20) return [];
+  if (w < bar + 30) return []; // lichte lifts: de eerste set is warm genoeg
   const out = [];
   for (const [p, r] of [[0, 10], [0.5, 5], [0.7, 3], [0.85, 1]]) {
     const x = p === 0 ? bar : roundLoad(ex, w * p, eq, 'down');
@@ -158,10 +170,11 @@ export function e1rm(load, reps) {
   if (reps === 1) return load;
   return load * (1 + Math.min(reps, 12) / 30); // Epley
 }
-// Totaal verplaatst gewicht van een set (beide dumbbells tellen mee).
+// Totaal verplaatst gewicht van een set. Dumbbells (twee stuks) en oefeningen met reps
+// per been/arm/kant (`side`) tellen dubbel.
 export function setTonnage(ex, s, bw) {
   if (!s.r) return 0;
-  const mult = ex.equip === 'dumbbell' ? 2 : 1;
+  const mult = ex.equip === 'dumbbell' || ex.side ? 2 : 1;
   return loadOf(ex, s.w, bw) * mult * s.r;
 }
 
@@ -176,8 +189,13 @@ export function bodyweightAt(state, iso) {
 export function schemeFor(goal, role, exId) {
   const g = GOALS[goal] || GOALS.hypertrophy;
   const s = { ...(g[role] || g.accessory) };
-  // Deadlift is zwaar voor je herstel: één set minder dan andere hoofdoefeningen.
-  if (exId === 'deadlift' && role === 'main') s.sets = Math.max(2, s.sets - 1);
+  // Deadlift is zwaar voor je herstel en je onderrug: één set minder en nooit hoge reps
+  // (bij 8–10 reps gaat de techniek als eerste onderuit).
+  if (exId === 'deadlift' && role === 'main') {
+    s.sets = Math.max(2, s.sets - 1);
+    s.hi = Math.min(s.hi, 6);
+    s.lo = Math.min(s.lo, s.hi - 2);
+  }
   return s;
 }
 
@@ -185,10 +203,10 @@ export function generateProgram({ goal, split }, eq) {
   const sp = SPLITS[split];
   const days = sp.template.map((d, i) => {
     const items = [];
-    for (const [exId, role] of d.ex) {
+    for (const [exId, role, over] of d.ex) {
       const id = pickAvailable(exId, eq);
       if (!id || items.some((it) => it.exId === id)) continue;
-      const s = schemeFor(goal, role, id);
+      const s = { ...schemeFor(goal, role, id), ...(id === exId ? over : null) };
       items.push({ exId: id, role, sets: s.sets, lo: s.lo, hi: s.hi });
     }
     return { id: 'd' + (i + 1), name: d.name, items };
@@ -306,6 +324,16 @@ export function suggest(state, item, { deload = false, excludeId = null, beforeD
         note: `Nieuw: startgewicht geschat op basis van je ${EX[est.from].name} (${fmtKg(est.base)} kg). Voelt het te licht of te zwaar? Pas het aan.`,
       };
     }
+    if (ex.startW != null) {
+      const w = roundLoad(ex, ex.startW, state.equipment, 'down');
+      return {
+        kind: 'new',
+        w,
+        reps: fill(item.lo),
+        sets,
+        note: `Nieuw: begin met ${fmtKg(w)} kg en doe ${item.lo}–${item.hi} reps${ex.side ? ' per ' + ex.side : ''}. Te licht of te zwaar? Pas het aan.`,
+      };
+    }
     return {
       kind: 'new',
       w: ex.equip === 'bodyweight' ? 0 : null,
@@ -343,7 +371,10 @@ export function suggest(state, item, { deload = false, excludeId = null, beforeD
       const reps = Array.from({ length: sets }, (_, i) => Math.min(ext, ((work[i] || work[work.length - 1]).r || item.hi) + 1));
       return { kind: 'reps', w: W, reps, sets, note: `De volgende stap (+${fmtKg(nw - W)} kg) is een grote sprong. Bouw eerst op naar ${ext} reps per set.` };
     }
-    return { kind: 'up', w: nw, reps: fill(item.lo), sets, delta: nw - W, note: `Vorige keer alle sets op ${item.hi} reps of meer. Tijd voor +${fmtKg(nw - W)} kg.` };
+    const note = W === 0 && ex.equip === 'barbell'
+      ? `Vorige keer zonder gewicht alle reps gehaald. Pak nu de lege stang (${fmtKg(nw)} kg) erbij.`
+      : `Vorige keer alle sets op ${item.hi} reps of meer. Tijd voor +${fmtKg(nw - W)} kg.`;
+    return { kind: 'up', w: nw, reps: fill(item.lo), sets, delta: nw - W, note };
   }
 
   if (missed) {
@@ -478,7 +509,9 @@ export function workoutSummary(state, w) {
       volume += setTonnage(ex, s, bw);
     }
   }
-  const minutes = w.finishedAt && w.startedAt ? (w.finishedAt - w.startedAt) / 60000 : null;
+  // Langer dan 4 uur = training bleef open staan; dan is de duur onbekend.
+  const raw = w.finishedAt && w.startedAt ? (w.finishedAt - w.startedAt) / 60000 : null;
+  const minutes = raw != null && raw <= 240 ? raw : null;
   return { sets, volume, minutes };
 }
 

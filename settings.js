@@ -3,11 +3,19 @@ import { state, save, replaceState, resetState, validateBackup } from './store.j
 import { ui, go, openSheet, closeSheet, registerActions, rerender, toast, btn, stepper, seg, confirmSheet, actions } from './core.js';
 import { GOALS, GOAL_ORDER } from './data.js';
 import { KNEE_LABEL, EXPERIENCE, CIRCUIT_GOALS } from './cdata.js';
-import { applyGoal, barStep, barMax, platesTotal, generateProgram } from './engine.js';
+import { applyGoal, barLoads, barMax, platesTotal, generateProgram } from './engine.js';
 import { generateCircuitProgram, refreshCircuitProgram } from './circuit.js';
 import { esc, icon, fmtKg, parseNum, DAY_SHORT, fmtDate, toISO, todayISO } from './util.js';
 
-const PLATE_SIZES = ['25', '20', '15', '10', '5', '2.5', '1.25'];
+const PLATE_SIZES = ['25', '20', '15', '10', '5', '2.5', '2', '1.25'];
+
+// Stapgrootte op de stang: met ongelijke schijven verschilt die (bijv. 4 en 6 kg).
+function barStepsText(eq) {
+  const l = barLoads(eq);
+  const d = [...new Set(l.slice(1).map((v, i) => +(v - l[i]).toFixed(3)))].sort((a, b) => a - b);
+  if (!d.length) return '';
+  return d.length === 1 ? `stappen van ${fmtKg(d[0])} kg` : `stappen van ${fmtKg(d[0])}–${fmtKg(d[d.length - 1])} kg`;
+}
 
 export function view() {
   const s = state.settings;
@@ -59,7 +67,7 @@ export function view() {
       <div class="field"><span>Schijven (aantal stuks)</span>
         <div class="plates">${PLATE_SIZES.map((kg) => `<div class="plate-row"><span class="plate-kg">${fmtKg(Number(kg))} kg</span>${stepper(eq.plates[kg] || 0, { act: 'eq-plate', data: { kg }, small: true })}</div>`).join('')}</div>
       </div>
-      <p class="foot nomt spaced">Totaal ${fmtKg(platesTotal(eq))} kg aan schijven · max ${fmtKg(barMax(eq))} kg op de stang · kleinste stap ${fmtKg(barStep(eq))} kg</p>
+      <p class="foot nomt spaced">Totaal ${fmtKg(platesTotal(eq))} kg aan schijven · max ${fmtKg(barMax(eq))} kg op de stang · ${barStepsText(eq)}</p>
       <div class="grid2">
         <label class="field"><span>Dumbbell max (kg p/st)</span><input class="input" inputmode="decimal" value="${fmtKg(eq.dbMax)}" data-change="eq-dbmax"></label>
         <label class="field"><span>Dumbbell stap (kg)</span>
